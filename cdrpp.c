@@ -5,9 +5,15 @@
 #include <string.h>
 #include <dirent.h>
 #include <time.h>
+#include <sys/wait.h>
 
 
 void substring(char s[], char sub[], int p, int l);
+void uncompressFile(char *folder);
+void copy(char *source, char *dest);
+void uncompressFileSys(char *folder);
+void copySys(char *source, char *dest);
+void cpFileToRTCPath();
 
 int main(void) {
     char cwd[1024];
@@ -147,11 +153,11 @@ int main(void) {
         perror ("");
         return 1;
     }
+
+    cpFileToRTCPath();
     
     printf("Done.\n");
-    
-    
-    
+        
     return 0;
 }
 
@@ -164,3 +170,143 @@ void substring(char s[], char sub[], int p, int l) {
    sub[c] = '\0';
 }
 
+void cpFileToRTCPath() {
+    struct tm * timeinfo;
+    char datef[70];
+    time_t now = time(0);
+    timeinfo = localtime(&now);
+    timeinfo->tm_mday -= 1;
+    strftime(datef, sizeof datef, "%Y%m%d", timeinfo);
+    printf("Copy CDR from yesterday: %s\n",datef);
+    
+    int ssleep = 10;
+    
+    char cwd[1024];
+    if (getcwd(cwd, sizeof(cwd)) != NULL) printf("directory: %s\n", cwd);
+    
+    char folderRTC4A[1024]; char folderRTC4B[1024]; char folderRTC5[1024];
+    strcpy(folderRTC4A, cwd); strcat(folderRTC4A, "/ITSC4A");
+    strcpy(folderRTC4B, cwd); strcat(folderRTC4B, "/ITSC4B");
+    strcpy(folderRTC5, cwd); strcat(folderRTC5, "/SRC5");
+    
+    char folderITSC4A[1024];
+    strcpy(folderITSC4A, cwd);strcat(folderITSC4A, "/ITSC4A_");strcat(folderITSC4A, datef);
+    //uncompressFile(folderITSC4A);sleep(ssleep);
+    //strcat(folderITSC4A, "/.");
+    //copy(folderITSC4A, folderRTC4A);
+    uncompressFileSys(folderITSC4A);
+    copySys(folderITSC4A, folderRTC4A);
+    
+    char folderITSC4B[1024];
+    strcpy(folderITSC4B, cwd);strcat(folderITSC4B, "/ITSC4B_");strcat(folderITSC4B, datef);
+    //uncompressFile(folderITSC4B);sleep(ssleep);
+    //strcat(folderITSC4B, "/.");
+    //copy(folderITSC4B, folderRTC4B);
+    uncompressFileSys(folderITSC4B);
+    copySys(folderITSC4B, folderRTC4B);
+    
+    char folderITSC5[1024];
+    strcpy(folderITSC5, cwd);strcat(folderITSC5, "/ITSC5_");strcat(folderITSC5, datef);
+    //uncompressFile(folderITSC5);sleep(ssleep);
+    //strcat(folderITSC5, "/.");
+    //copy(folderITSC5, folderRTC5);
+    uncompressFileSys(folderITSC5);
+    copySys(folderITSC5, folderRTC5);
+}
+
+void uncompressFile(char *folder) {
+    int childExitStatus;
+    pid_t pid;
+    int status;
+    if (!folder) {
+        /* handle as you wish */
+    }
+
+    pid = fork();
+
+    if (pid == 0) { /* child */
+        execl("/bin/uncompress", "/bin/uncompress", "-r", folder, (char *)0);
+    }
+    else if (pid < 0) {
+        /* error - couldn't start process - you decide how to handle */
+    }
+    else {
+        /* parent - wait for child - this has all error handling, you
+         * could just call wait() as long as you are only expecting to
+         * have one child process at a time.
+         */
+        pid_t ws = waitpid( pid, &childExitStatus, WNOHANG);
+        if (ws == -1)
+        { /* error - handle as you wish */
+        }
+
+        if( WIFEXITED(childExitStatus)) /* exit code in childExitStatus */
+        {
+            status = WEXITSTATUS(childExitStatus); /* zero is normal exit */
+            /* handle non-zero as you wish */
+        }
+        else if (WIFSIGNALED(childExitStatus)) /* killed */
+        {
+        }
+        else if (WIFSTOPPED(childExitStatus)) /* stopped */
+        {
+        }
+    }     
+}
+
+void copy(char *source, char *dest) {
+    int childExitStatus;
+    pid_t pid;
+    int status;
+    if (!source || !dest) {
+        /* handle as you wish */
+    }
+
+    pid = fork();
+
+    if (pid == 0) { /* child */
+        execl("/bin/cp", "/bin/cp", "-R", source, dest, (char *)0);
+    }
+    else if (pid < 0) {
+        /* error - couldn't start process - you decide how to handle */
+    }
+    else {
+        /* parent - wait for child - this has all error handling, you
+         * could just call wait() as long as you are only expecting to
+         * have one child process at a time.
+         */
+        pid_t ws = waitpid( pid, &childExitStatus, WNOHANG);
+        if (ws == -1)
+        { /* error - handle as you wish */
+        }
+
+        if( WIFEXITED(childExitStatus)) /* exit code in childExitStatus */
+        {
+            status = WEXITSTATUS(childExitStatus); /* zero is normal exit */
+            /* handle non-zero as you wish */
+        }
+        else if (WIFSIGNALED(childExitStatus)) /* killed */
+        {
+        }
+        else if (WIFSTOPPED(childExitStatus)) /* stopped */
+        {
+        }
+    }
+}
+
+void uncompressFileSys(char *folder) {
+    char command[100];
+    //strcpy(command, "/bin/uncompress -r ");
+    strcpy(command, "/usr/bin/uncompress -r ");
+    strcat(command, folder);
+    system(command);
+}
+
+void copySys(char *source, char *dest) {
+    char command[100];
+    strcpy(command, "/bin/cp ");
+    strcat(command, source);
+    strcat(command, "/* ");
+    strcat(command, dest);
+    system(command);
+}
